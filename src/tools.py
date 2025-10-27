@@ -2,16 +2,15 @@
 
 from typing import List
 from langchain_core.tools import tool
+from src.document_store import get_document_store
 
 
 @tool
 def retrieve_pdf_chunks(query: str, top_k: int = 5) -> str:
     """Retrieve relevant chunks from uploaded PDF documents.
 
-    This is a PLACEHOLDER. During the live coding session, implement:
-    - Store uploaded PDFs and their chunks
-    - Search through chunks using the query
-    - Return top-k most relevant chunks with citations
+    Uses semantic search to find the most relevant text chunks from uploaded PDFs
+    and returns them with citations including filename and page number.
 
     Args:
         query: The search query or question
@@ -20,8 +19,26 @@ def retrieve_pdf_chunks(query: str, top_k: int = 5) -> str:
     Returns:
         A formatted string with retrieved chunks and citations
     """
-    # TODO: Implement during live coding session
-    return "No PDF retrieval implemented yet. TODO: Implement document storage and retrieval logic."
+    # Get the document store
+    doc_store = get_document_store()
+
+    # Retrieve relevant chunks with scores
+    results = doc_store.retrieve_with_scores(query, top_k=top_k)
+
+    if not results:
+        return "No relevant information found in the uploaded documents."
+
+    # Format results with citations
+    formatted_chunks = []
+    for i, (doc, score) in enumerate(results, start=1):
+        chunk_text = doc.page_content.strip()
+        source = doc.metadata.get("source", "Unknown")
+
+        formatted_chunks.append(
+            f"**[{i}] {source}** (relevance: {score:.2f})\n{chunk_text}"
+        )
+
+    return "\n\n---\n\n".join(formatted_chunks)
 
 
 def get_available_tools() -> List:
