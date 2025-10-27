@@ -61,19 +61,29 @@ with st.sidebar:
         if st.button("Process PDF", type="primary"):
             with st.spinner("Processing PDF..."):
                 try:
-                    # TODO: Implement PDF processing during live coding session
-                    # For now, just store the file reference
+                    # Read file bytes
+                    file_bytes = uploaded_file.read()
+                    
+                    # Process with document store
+                    result = st.session_state.agent.document_store.process_pdf(
+                        file_bytes=file_bytes,
+                        filename=uploaded_file.name
+                    )
+                    
+                    # Update uploaded files list
                     if uploaded_file.name not in [f["name"] for f in st.session_state.uploaded_files]:
                         st.session_state.uploaded_files.append({
                             "name": uploaded_file.name,
                             "size": uploaded_file.size,
+                            "pages": result["num_pages"],
+                            "chunks": result["num_chunks"]
                         })
-                        st.success(f"✅ Uploaded: {uploaded_file.name}")
+                        st.success(
+                            f"✅ Processed: {uploaded_file.name}\n\n"
+                            f"📄 {result['num_pages']} pages → {result['num_chunks']} chunks"
+                        )
                     else:
                         st.info("File already uploaded")
-                    
-                    # TODO: Extract text, chunk, and store
-                    st.warning("⚠️ PDF processing not implemented yet. This is where you'll implement text extraction and chunking.")
                     
                 except Exception as e:
                     st.error(f"❌ Error processing PDF: {str(e)}")
@@ -127,13 +137,16 @@ if prompt := st.chat_input("Ask a question about your documents..."):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                # TODO: During live session, pass conversation history to maintain context
-                response = st.session_state.agent.run(prompt)
+                # Pass conversation history to maintain context
+                response = st.session_state.agent.run(
+                    prompt,
+                    conversation_history=st.session_state.chat_history
+                )
                 st.markdown(response)
-                
+
                 # Add assistant response to chat history
                 st.session_state.chat_history.append({"role": "assistant", "content": response})
-                
+
             except Exception as e:
                 error_msg = f"❌ Error: {str(e)}"
                 st.error(error_msg)

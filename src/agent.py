@@ -6,8 +6,8 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-
-from src.tools import get_available_tools
+from src.document_store import PDFDocumentStore
+from src.tools import get_available_tools, set_document_store
 
 
 class AgentState(TypedDict):
@@ -19,9 +19,19 @@ class AgentState(TypedDict):
 class PDFQAAgent:
     """ReAct-style agent for PDF question answering."""
     
-    def __init__(self):
-        """Initialize the agent."""
+    def __init__(self, persist_directory: str = "./chroma_db"):
+        """Initialize the agent.
+        
+        Args:
+            persist_directory: Directory for ChromaDB persistence
+        """
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        
+        # Initialize document store
+        self.document_store = PDFDocumentStore(persist_directory)
+
+        # Set global document store for tools
+        set_document_store(self.document_store)
         
         # Get available tools
         self.tools = get_available_tools()
@@ -104,25 +114,36 @@ class PDFQAAgent:
         
         return "end"
     
-    def run(self, user_message: str) -> str:
-        """Run the agent with a user message.
-        
+    def run(self, user_message: str, conversation_history: list = None) -> str:
+        """Run the agent with a user message and optional conversation history.
+
         Args:
             user_message: The user's question
-            
+            conversation_history: Optional list of previous messages for context
+
         Returns:
             The agent's response
         """
-        # Create message
-        message = HumanMessage(content=user_message)
-        
+        # Build message list with conversation history
+        messages = []
+
+        # Add conversation history if provided
+        if conversation_history:
+            for msg in conversation_history:
+                if msg["role"] == "user":
+                    messages.append(HumanMessage(content=msg["content"]))
+                # Skip assistant messages as they'll be in the graph state
+
+        # Add current user message
+        messages.append(HumanMessage(content=user_message))
+
         # Invoke the graph
         result = self.graph.invoke({
-            "messages": [message],
+            "messages": messages,
         })
-        
+
         # Extract final response
         final_message = result["messages"][-1]
         response_text = final_message.content
-        
+
         return response_text
